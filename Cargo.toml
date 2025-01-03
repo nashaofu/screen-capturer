@@ -46,6 +46,13 @@ windows = { version = "0.59", features = [
     "Win32_Graphics_Direct3D",
     "Win32_Graphics_Direct3D11",
     "Win32_Graphics_Dxgi_Common",
+    "Win32_UI_Magnification",
+    "Win32_System_WinRT_Direct3D11",
+    "Win32_System_WinRT_Graphics",
+    "Win32_System_WinRT_Graphics_Capture",
+    "Graphics_Capture",
+    "UI",
+    "Graphics_DirectX_Direct3D11"
 ] }
 
 [target.'cfg(target_os="linux")'.dependencies]

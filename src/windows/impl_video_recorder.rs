@@ -26,7 +26,7 @@ use crate::{
     XCapError, XCapResult,
 };
 
-use super::utils::bgra_to_rgba;
+use super::utils::{bgra_to_rgba, create_d3d11_device};
 
 pub fn texture_to_frame(
     d3d_device: &ID3D11Device,
@@ -60,17 +60,25 @@ pub fn texture_to_frame(
         )?;
 
         // Get a slice of bytes
-        let bgra = slice::from_raw_parts(
-            mapped.pData.cast(),
-            (source_desc.Height * mapped.RowPitch) as usize,
-        );
+        let bgra = slice::from_raw_parts(mapped.pData.cast(), mapped.DepthPitch as usize);
+
+        let bytes_per_pixel = 4;
+        let mut bits =
+            vec![0u8; (source_desc.Width * source_desc.Height * bytes_per_pixel) as usize];
+        for row in 0..source_desc.Height {
+            let data_begin = (row * (source_desc.Width * bytes_per_pixel)) as usize;
+            let data_end = ((row + 1) * (source_desc.Width * bytes_per_pixel)) as usize;
+            let slice_begin = (row * mapped.RowPitch) as usize;
+            let slice_end = slice_begin + (source_desc.Width * bytes_per_pixel) as usize;
+            bits[data_begin..data_end].copy_from_slice(&bgra[slice_begin..slice_end]);
+        }
 
         d3d_context.Unmap(Some(&resource), 0);
 
         Ok(Frame::new(
             source_desc.Width,
             source_desc.Height,
-            bgra_to_rgba(bgra.to_owned()),
+            bgra_to_rgba(bits.to_owned()),
         ))
     }
 }
@@ -92,14 +100,8 @@ impl ImplVideoRecorder {
                 D3D_DRIVER_TYPE_HARDWARE,
                 HMODULE::default(),
                 D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_SINGLETHREADED,
-                None,
-                D3D11_SDK_VERSION,
-                Some(&mut d3d_device),
-                None,
-                None,
             )?;
 
-            let d3d_device = d3d_device.ok_or(XCapError::new("Call D3D11CreateDevice failed"))?;
             let dxgi_device = d3d_device.cast::<IDXGIDevice>()?;
             let d3d_context = d3d_device.GetImmediateContext()?;
 
