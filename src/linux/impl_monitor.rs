@@ -327,6 +327,6 @@ impl ImplMonitor {
     }
 
     pub fn video_recorder(&self) -> XCapResult<(ImplVideoRecorder, Receiver<Frame>)> {
-        ImplVideoRecorder::new()
+        ImplVideoRecorder::new(self.clone())
     }
 }
