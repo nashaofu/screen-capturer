@@ -215,3 +215,69 @@ pub fn capture_window(hwnd: HWND, scale_factor: f32) -> XCapResult<RgbaImage> {
             .to_rgba8())
     }
 }
+
+pub fn capture_window_region(
+    hwnd: HWND,
+    scale_factor: f32,
+    window_info: &WINDOWINFO,
+    x: u32,
+    y: u32,
+    width: i32,
+    height: i32,
+) -> XCapResult<RgbaImage> {
+    unsafe {
+        let box_hdc_window: BoxHDC = BoxHDC::from(hwnd);
+
+        // 计算缩放后的截图区域大小
+        let scaled_width = (width as f32 * scale_factor).ceil() as i32;
+        let scaled_height = (height as f32 * scale_factor).ceil() as i32;
+
+        // 创建兼容的内存 DC 和位图对象
+        let box_hdc_mem = BoxHDC::new(CreateCompatibleDC(*box_hdc_window), None);
+        let box_h_bitmap = BoxHBITMAP::new(CreateCompatibleBitmap(*box_hdc_window, scaled_width, scaled_height));
+
+        let previous_object = SelectObject(*box_hdc_mem, *box_h_bitmap);
+
+        let mut is_success = false;
+
+        // 使用 PrintWindow 获取窗口内容
+        if get_os_major_version() >= 8 {
+            is_success = PrintWindow(hwnd, *box_hdc_mem, PRINT_WINDOW_FLAGS(2)).as_bool();
+        }
+        if !is_success && DwmIsCompositionEnabled()?.as_bool() {
+            is_success = PrintWindow(hwnd, *box_hdc_mem, PRINT_WINDOW_FLAGS(0)).as_bool();
+        }
+        if !is_success {
+            is_success = PrintWindow(hwnd, *box_hdc_mem, PRINT_WINDOW_FLAGS(3)).as_bool();
+        }
+
+        // 如果 PrintWindow 失败，尝试 BitBlt 截图
+        if !is_success {
+            is_success = BitBlt(
+                *box_hdc_mem,
+                0,
+                0,
+                scaled_width,
+                scaled_height,
+                *box_hdc_window,
+                x as i32,
+                y as i32,
+                SRCCOPY,
+            )
+            .is_ok();
+        }
+
+        // 恢复之前的 GDI 对象
+        SelectObject(*box_hdc_mem, previous_object);
+
+        // 转换为图像对象
+        let image = to_rgba_image(box_hdc_mem, box_h_bitmap, scaled_width, scaled_height)?;
+
+        // 截取指定区域
+        let cropped_image = DynamicImage::ImageRgba8(image)
+            .crop(x, y, scaled_width as u32, scaled_height as u32)
+            .to_rgba8();
+
+        Ok(cropped_image)
+    }
+}

@@ -29,7 +29,7 @@ use windows::{
 use crate::error::XCapResult;
 
 use super::{
-    capture::capture_window,
+    capture::{capture_window,capture_window_region},
     impl_monitor::ImplMonitor,
     utils::{get_process_is_dpi_awareness, get_window_info, open_process},
 };
@@ -428,5 +428,23 @@ impl ImplWindow {
         };
 
         capture_window(self.hwnd, scale_factor)
+    }
+    pub fn capture_image_region(&self,x:u32,y:u32,width:i32,height:i32) -> XCapResult<RgbaImage> {
+        // 在win10之后，不同窗口有不同的dpi，所以可能存在截图不全或者截图有较大空白，实际窗口没有填充满图片
+        // 如果窗口不感知dpi，那么就不需要缩放，如果当前进程感知dpi，那么也不需要缩放
+        let box_process_handle = BoxProcessHandle::open(PROCESS_ALL_ACCESS, false, self.pid)?;
+        let window_is_dpi_awareness = get_process_is_dpi_awareness(*box_process_handle)?;
+        let current_process_is_dpi_awareness =
+            unsafe { get_process_is_dpi_awareness(GetCurrentProcess())? };
+
+        let scale_factor = if !window_is_dpi_awareness {
+            1.0
+        } else if current_process_is_dpi_awareness {
+            1.0
+        } else {
+            self.current_monitor.scale_factor
+        };
+
+        capture_window_region(self.hwnd, scale_factor, &self.window_info,x,y,width,height)
     }
 }

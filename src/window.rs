@@ -84,4 +84,7 @@ impl Window {
     pub fn capture_image(&self) -> XCapResult<RgbaImage> {
         self.impl_window.capture_image()
     }
+    pub fn capture_image_region(&self, x: u32, y: u32, w: i32, h: i32) -> XCapResult<RgbaImage> {
+        self.impl_window.capture_image_region(x, y, w, h)
+    }
 }
